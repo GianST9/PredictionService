@@ -48,6 +48,3 @@ Another possible enhancement is the integration of the bot with real-time tradin
 
 ## Disclaimer
 Stock trading involves significant financial risk, and it is important to note that **no prediction is guaranteed**. While the Stock Trading Bot utilizes advanced machine learning techniques to make predictions, the stock market is inherently unpredictable, and there are many factors that can influence stock prices. Users should always do their own research and exercise caution when making investment decisions.
-
- 
- 
