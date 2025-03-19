@@ -1,4 +1,3 @@
-import json
 import joblib
 import requests
 import sqlite3
@@ -7,37 +6,24 @@ import os
 import re
 from datetime import datetime, timedelta
 from sklearn.ensemble import RandomForestClassifier
-#from sklearn.preprocessing import LabelBinarizer
-
-# Define base directory
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-MODEL_DIR = os.path.join(BASE_DIR, "StockTradingBot", "models")
-LOG_DIR = os.path.join(BASE_DIR, "StockTradingBot", "logs")
-SCRIPT_DIR = os.path.join(BASE_DIR, "StockTradingBot", "scripts")
-KEY_PATH = os.path.join(BASE_DIR, "key.txt")
-STOCK_SYMBOLS_PATH = os.path.join(BASE_DIR, "stock_symbols.txt")
-DB_PATH = os.path.join(BASE_DIR, "finance.db")
-
-# Ensure necessary directories exist
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(MODEL_DIR, exist_ok=True)
-os.makedirs(LOG_DIR, exist_ok=True)
+from sklearn.preprocessing import LabelBinarizer
 
 
+
+# Function to clean the stock symbol
 def clean_symbol(symbol):
-    return symbol.split('.')[0]  
+    return symbol.split('.')[0]  # Remove anything after and including a dot
 
 
-
+# Function to clean table name
 def clean_table_name(filepath):
-    filename = os.path.basename(filepath)  
-    stock_name = filename.split('_')[0]  
-    table_name = f"{stock_name.lower()}"  
-    return re.sub(r'\W|^(?=\d)', '_', table_name)  
+    filename = os.path.basename(filepath)  # Extract filename
+    stock_name = filename.split('_')[0]  # Extract stock symbol
+    table_name = f"{stock_name.lower()}"  # Create table name
+    return re.sub(r'\W|^(?=\d)', '_', table_name)  # Sanitize name
 
 
-# df into database
+# Function to integrate DataFrame into SQLite database
 def dataframe_to_sqlite(df, db_name, table_name):
     conn = sqlite3.connect(db_name)
     df.to_sql(table_name, conn, if_exists='replace', index=False)
@@ -48,8 +34,10 @@ def dataframe_to_sqlite(df, db_name, table_name):
 
 # Function to modify the data
 def modify_data(csv_file):
-    
+    # Load CSV data into a Pandas DataFrame
     df = pd.read_csv(csv_file)
+    
+    # Ensure the data is sorted by timestamp for proper shifting
     df = df.sort_values('timestamp')
     
     for col in ['open', 'high', 'low', 'close', 'volume']:
@@ -65,16 +53,18 @@ def modify_data(csv_file):
     new_predictors = []
     
     for horizon in horizons:
-        # rolling averages
+        # Calculate rolling averages
         rolling_averages = df[["close"]].rolling(horizon).mean()
-
+        
+        # Calculate close ratio columns
         ratio_column = f"close_ratio_{horizon}"
         df[ratio_column] = df["close"] / rolling_averages["close"]
-
+        
+        # Calculate trend columns
         trend_column = f"trend_{horizon}"
         df[trend_column] = df[["close"]].shift(1).rolling(horizon).sum()
         
-        # new features
+        # Add new columns to predictors list
         new_predictors += [ratio_column, trend_column]
 
     columns_to_check = df.columns.difference(['tomorrow'])  # All columns except 'tomorrow'
@@ -83,32 +73,37 @@ def modify_data(csv_file):
     return df
 
 
-# pull data from API and save to file
-def data_pull(symbol=None):
-    if symbol is None:
-        symbol = input("Enter the stock symbol (e.g., IBM, AAPL, ASML.AS): ").strip().upper()
+# Function to pull data from API and save to file
+def data_pull():
+    # Ask the user for the stock symbol
+    symbol = input("Enter the stock symbol (e.g., IBM, AAPL, ASML.AS): ").strip().upper()
+
+    # Clean the symbol to remove suffix
     clean_symbol_name = clean_symbol(symbol)
 
-    data_folder = DATA_DIR #r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\data"
-    #os.makedirs(data_folder, exist_ok=True)
+    # Filepath where CSV will be saved
+    data_folder = r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\data"
+    os.makedirs(data_folder, exist_ok=True)
     filepath = os.path.join(data_folder, f"{clean_symbol_name}_daily_stock.csv")
 
-    # yesterday's date
+    # Determine yesterday's date
     yesterday = (datetime.now() - timedelta(days=1)).date()
 
+    # Check if the file already exists
     if os.path.exists(filepath):
+        # Load existing data
         df_existing = pd.read_csv(filepath)
         df_existing["timestamp"] = pd.to_datetime(df_existing["timestamp"])
 
         latest_date = df_existing["timestamp"].max().date()
         if latest_date >= yesterday:
             print(f"Data for {symbol} is already up-to-date.")
-            return True  
+            return
         else:
             print(f"Updating data for {symbol}...")
     else:
         print(f"No data found for {symbol}. Fetching full dataset...")
-        df_existing = None  
+        df_existing = None  # No existing data
 
     # Fetch data from API
     api_key_path = r"C:\Users\gianl\.vscode\FinalProject\key.txt"
@@ -117,33 +112,35 @@ def data_pull(symbol=None):
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}&datatype=csv&outputsize=full"
     response = requests.get(url)
 
-    # successful
+    # Check if the request was successful
     if response.status_code == 200:
+        # Save the content to the file with cleaned symbol name
         with open(filepath, 'wb') as file:
             file.write(response.content)
 
+        # Load the newly downloaded data
         df_new = pd.read_csv(filepath)
         df_new['timestamp'] = pd.to_datetime(df_new['timestamp'])
 
+        # Combine with existing data, if any
         if df_existing is not None:
             df_combined = pd.concat([df_existing, df_new]).drop_duplicates(subset='timestamp').sort_values('timestamp')
         else:
             df_combined = df_new
 
+        # Save the combined data back to the file
         df_combined.to_csv(filepath, index=False)
         print(f"Data for {symbol} updated successfully and saved to {filepath}")
 
-        # Modify data and save to db
+        # Modify the combined data and save to SQLite
         modified_df = modify_data(filepath)
         db_name = "finance.db"
         dataframe_to_sqlite(modified_df, db_name, clean_symbol_name)
-        return True  
     else:
         print(f"Failed to fetch data for {symbol}. Status code: {response.status_code}")
-        return False 
 
 
-# retrieve stock data from db
+# Function to retrieve stock data from SQLite
 def get_stock_data(db_name, table_name):
     conn = sqlite3.connect(db_name)
     query = f"SELECT * FROM {table_name}"
@@ -151,19 +148,19 @@ def get_stock_data(db_name, table_name):
     conn.close()
     return df
 
-# predict using a trained model
+# Function to predict using a trained model
 def predict(train, test, predictors, model):
     model.fit(train[predictors], train["target"])
     preds = model.predict(test[predictors])
     preds[preds >= .6] = 1
     preds[preds <  .6] = 0
-    probabilities = model.predict_proba(test[predictors]) 
+    probabilities = model.predict_proba(test[predictors]) ##new
     preds = pd.Series(preds, index=test.index, name="Predictions")
-    confidence = pd.Series(probabilities.max(axis=1), index=test.index, name="Confidence") 
+    confidence = pd.Series(probabilities.max(axis=1), index=test.index, name="Confidence") ##new
     combined = pd.concat([test["target"], preds, confidence], axis=1)   ## added confi to list
     return combined
 
-# Backtesting 
+# Backtesting function
 def backtest(data, model, predictors, start=2500, step=250):
     all_predictions = []
 
@@ -176,69 +173,71 @@ def backtest(data, model, predictors, start=2500, step=250):
     return pd.concat(all_predictions)
 
 # Build model function
-def build_model(symbol=None):
-    if symbol is None:
-        symbol = input("Enter the stock symbol (e.g., IBM, AAPL): ").strip().upper()
-    else:
-        symbol = symbol.strip().upper()
+def build_model():
+    # Ask the user for the stock symbol
+    symbol = input("Enter the stock symbol (e.g., IBM, AAPL): ").strip().upper()
     
     # Database and table setup
     db_name = "finance.db"
     table_name = f"{symbol.upper()}"
 
+    # Retrieve data from SQLite
     try:
         df = get_stock_data(db_name, table_name)
     except Exception as e:
         print(f"Error retrieving data for {symbol}: {e}")
-        return False
+        return
 
+    # Check if necessary columns are present
     required_columns = ["target", "open", "high", "low", "close", "volume"]
     if not all(col in df.columns for col in required_columns):
         print(f"Missing required columns in data for {symbol}. Cannot build model.")
-        return False
+        return
 
     # Train-test split
     train = df.iloc[:-100]
     test = df.iloc[-100:]
 
+    # Predictors to use
     predictors = ["open", "high", "low", "close", "volume"]
     rolling_predictors = [col for col in df.columns if "close_ratio_" in col or "trend_" in col]
     all_predictors = predictors + rolling_predictors
 
-
     # Initialize the model
     model = RandomForestClassifier(n_estimators=200, min_samples_split=50, random_state=1)
+
     # Backtest the model
     predictions = backtest(df, model, all_predictors)
+
     # Evaluate model performance
     accuracy = (predictions["target"] == predictions["Predictions"]).mean()
     print(f"Model Accuracy for {symbol}: {accuracy:.2%}")
 
-
-    model_dir = MODEL_DIR #r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\models"
-    #os.makedirs(model_dir, exist_ok=True)
+    # Save the model to the models directory
+    model_dir = r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\models"
+    os.makedirs(model_dir, exist_ok=True)
     model_path = os.path.join(model_dir, f"{symbol}_model.pkl")
     joblib.dump(model, model_path)
     print(f"Model for {symbol} saved successfully at {model_path}.")
-    return True
 
 
 def fetch_current_data(symbol):
     """
     Fetch the most recent data for the current day from the database.
     """
-
+    # Define database and table name
     db_name = "finance.db"
     table_name = f"{symbol.upper()}"
     
     try:
+        # Connect to the SQLite database
         conn = sqlite3.connect(db_name)
         
-        # Get yesterdays date
-        today_date = (datetime.now() - timedelta(days=1)).date()    #TODO currently has a error on mondays, no data for weekends
+        # Get today's date
+        today_date = (datetime.now() - timedelta(days=1)).date()    #####################################################################TODO change to pull latest data from api and update date to current date  --datetime.now().date()
         
         print(f"{today_date}")
-        # Query for date
+        # Query for the most recent data
         query = f"""
         SELECT * FROM {table_name} 
         WHERE DATE(timestamp) = ?
@@ -248,7 +247,7 @@ def fetch_current_data(symbol):
         conn.close()
         
         if df.empty:
-            print(f"No data available for {symbol} for today's date ({today_date}) Line 224 in main.")
+            print(f"No data available for {symbol} for today's date ({today_date}).")
             return None
         
         return df
@@ -259,18 +258,19 @@ def fetch_current_data(symbol):
 
 def predict_current_day(symbol):
     #loading model
-    model_dir = MODEL_DIR #r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\models"
+    model_dir = r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\models"
     model_path = os.path.join(model_dir, f"{symbol.upper()}_model.pkl")
 
     if not os.path.exists(model_path):
         print(f"Model of {symbol} not trained yet.")
-        return None
+        return
     
     model = joblib.load(model_path)
 
+    # load data of today
     current_day_data = fetch_current_data(symbol)
     if current_day_data is None:
-        return None
+        return
     
     db_name = "finance.db"
     table_name = f"{symbol.upper()}"
@@ -278,7 +278,7 @@ def predict_current_day(symbol):
         df = get_stock_data(db_name, table_name)
     except Exception as e:
         print(f"Error loading data of {symbol}: {e}")
-        return None
+        return
     
     predictors = ["open", "high", "low", "close", "volume"]
     rolling_predictors = [col for col in df.columns if "close_ratio_" in col or "trend_" in col]
@@ -292,129 +292,20 @@ def predict_current_day(symbol):
     current_day_data = current_day_data[all_predictors]
     if current_day_data.isnull().any().any():
         print("data for yesterday")
-
+        #return
     
-
+    # pred = prediction; prob = probability calculation
     pred = model.predict(current_day_data)
     prob = model.predict_proba(current_day_data).max(axis=1)
 
     print(f"Prediction for the current day ({current_day_data.index[0]}: {'Rise' if pred[0] == 1 else 'Drop'})")
     print(f"Confidence:  {prob[0]: .2%}")
-    return {"date": current_day_data.index[0], "prediction": 'Rise' if pred[0] == 1 else 'Drop', 'confidence': prob[0]}
-
-
-def evaluate_all_stocks():
-    """
-    Evaluate all stocks in the stock_symbols.txt file:
-    - Fetch data if needed
-    - Create model if it doesn't exist
-    - Get prediction for the current day
-    - Store results in JSON file
-    """
-
-    symbols_file = STOCK_SYMBOLS_PATH #r"C:\Users\gianl\.vscode\FinalProject\stock_symbols.txt"
-    log_dir = LOG_DIR #r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\logs"
-    json_log_file = os.path.join(log_dir, "predictions_log.json")
+    return {"date": current_day_data.index[0], "prediction" : 'Rise' if pred[0] == 1 else 'Drop', 'confidence': prob[0]}
     
-    #os.makedirs(log_dir, exist_ok=True)
-    
-    try:
-        with open(symbols_file, 'r') as f:
-            stock_symbols = [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        print(f"Stock symbols file not found at {symbols_file}")
-        return
-    except Exception as e:
-        print(f"Error reading stock symbols file: {e}")
-        return
-    
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    batch_data = {
-        "batch_id": datetime.now().strftime("%Y%m%d%H%M%S"),
-        "timestamp": timestamp,
-        "predictions": []
-    }
-
-    for symbol in stock_symbols:
-        symbol = symbol.strip().upper()
-        print(f"\nProcessing {symbol}...")
-        
-        status = "Complete"
-        prediction_data = {
-            "symbol": symbol,
-            "prediction": "N/A",
-            "confidence": "N/A",
-            "status": status
-        }
-        
-        try:
-            # Fetch data if needed
-            try:
-                data_success = data_pull(symbol)
-                if not data_success:
-                    prediction_data["status"] = "Failed to fetch data"
-                    batch_data["predictions"].append(prediction_data)
-                    continue
-                    
-            except Exception as e:
-                prediction_data["status"] = f"Error fetching data: {str(e)[:50]}"
-                batch_data["predictions"].append(prediction_data)
-                continue
-            
-            # Check if model exists, if not, build it
-            model_dir = MODEL_DIR #r"C:\Users\gianl\.vscode\FinalProject\StockTradingBot\models"
-            model_path = os.path.join(model_dir, f"{symbol}_model.pkl")
-            
-            if not os.path.exists(model_path):
-                print(f"Model for {symbol} not found. Building new model...")
-                model_success = build_model(symbol)
-                if not model_success:
-                    prediction_data["status"] = "Failed to build model"
-                    batch_data["predictions"].append(prediction_data)
-                    continue
-            
-            # Make prediction for current day
-            prediction_result = predict_current_day(symbol)
-            if prediction_result is None:
-                prediction_data["status"] = "Failed to make prediction"
-                batch_data["predictions"].append(prediction_data)
-                continue
-            
-            # Add prediction to data
-            prediction_data["prediction"] = prediction_result["prediction"]
-            prediction_data["confidence"] = f"{prediction_result['confidence']:.2%}"
-            prediction_data["status"] = "Complete"
-            batch_data["predictions"].append(prediction_data)
-                
-        except Exception as e:
-            prediction_data["status"] = f"Error: {str(e)[:50]}"
-            batch_data["predictions"].append(prediction_data)
-            print(f"Error processing {symbol}: {e}")
-    
-    all_batches = []
-    if os.path.exists(json_log_file) and os.path.getsize(json_log_file) > 0:
-        try:
-            with open(json_log_file, 'r') as f:
-                all_batches = json.load(f)
-                if not isinstance(all_batches, list):
-                    all_batches = [all_batches]
-        except json.JSONDecodeError:
-            all_batches = []
-    
-    all_batches.append(batch_data)
-    
-    with open(json_log_file, 'w') as f:
-        json.dump(all_batches, f, indent=2)
-    
-    print(f"\nEvaluation complete. Results saved to {json_log_file}")
-
-    return batch_data
-
 
 # Main loop
 if __name__ == "__main__":
-    print("Options: data_pull, build_model, current_day, evaluate_all")
+    print("Options: data_pull, build_model, current_day")
     option = input("Select: ").strip().lower()
 
     # Pull historical data from API
@@ -422,17 +313,9 @@ if __name__ == "__main__":
         data_pull()
     
     # Build ml model based on historical data
-    elif option == "build_model":
+    if option == "build_model":
         build_model()
 
-    # Predict for current day
-    elif option == "current_day":
-        symbol = input("Enter stock symbol (e.g., IBM, AAPL): ").strip().upper()
+    if option == "current_day":
+        symbol = input("Enter stock symbol (e.g., IBM, AAPL): ").strip().lower()
         predict_current_day(symbol)
-    
-    # Evaluate all stocks in the list
-    elif option == "evaluate_all":
-        evaluate_all_stocks()
-    
-    else:
-        print("Invalid option selected: data_pull, build_model, current_day, evaluate_all")

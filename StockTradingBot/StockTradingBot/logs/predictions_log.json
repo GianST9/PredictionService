@@ -1,0 +1,122 @@
+[
+  {
+    "batch_id": "20250319144007",
+    "timestamp": "2025-03-19 14:40:07",
+    "predictions": [
+      {
+        "symbol": "MSFT",
+        "prediction": "Drop",
+        "confidence": "53.46%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "GOOGL",
+        "prediction": "Drop",
+        "confidence": "50.02%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "AMZN",
+        "prediction": "Rise",
+        "confidence": "50.19%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "TSLA",
+        "prediction": "Rise",
+        "confidence": "54.91%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "NVDA",
+        "prediction": "Drop",
+        "confidence": "57.60%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "META",
+        "prediction": "Drop",
+        "confidence": "52.17%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "NFLX",
+        "prediction": "Drop",
+        "confidence": "68.54%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "AMD",
+        "prediction": "Drop",
+        "confidence": "55.96%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "INTC",
+        "prediction": "Drop",
+        "confidence": "53.98%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "BA",
+        "prediction": "Rise",
+        "confidence": "50.47%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "JPM",
+        "prediction": "Drop",
+        "confidence": "52.78%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "V",
+        "prediction": "Rise",
+        "confidence": "50.09%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "MA",
+        "prediction": "Rise",
+        "confidence": "56.53%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "WMT",
+        "prediction": "Rise",
+        "confidence": "54.80%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "DIS",
+        "prediction": "Drop",
+        "confidence": "52.26%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "PYPL",
+        "prediction": "N/A",
+        "confidence": "N/A",
+        "status": "Error: No objects to concatenate"
+      },
+      {
+        "symbol": "ADBE",
+        "prediction": "Rise",
+        "confidence": "55.51%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "CRM",
+        "prediction": "Rise",
+        "confidence": "53.77%",
+        "status": "Complete"
+      },
+      {
+        "symbol": "PEP",
+        "prediction": "Drop",
+        "confidence": "52.88%",
+        "status": "Complete"
+      }
+    ]
+  }
+]
