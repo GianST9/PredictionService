@@ -1,6 +1,5 @@
 # Stock Trading Bot
 
-#### Video Demo: https://youtu.be/Pzi1yJQmjYA
 
 #### Description:
 The Stock Trading Bot is an advanced project that combines machine learning with financial data to predict stock market movements. The bot uses historical stock data as input to create predictive models that can forecast whether a stock price will rise or drop in the near future. By leveraging machine learning algorithms, specifically the RandomForestClassifier, the bot can make predictions on a daily basis based on the most recent stock market data. It pulls this data from the Alpha Vantage API, processes it to make it suitable for analysis, and stores the results in an SQLite database for future use. The system is designed to provide users with actionable insights into potential market movements, improving the decision-making process in stock trading.
